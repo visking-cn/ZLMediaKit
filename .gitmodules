@@ -3,4 +3,11 @@
 	url = https://gitee.com/xia-chu/ZLToolKit
 [submodule "3rdpart/media-server"]
 	path = 3rdpart/media-server
+<<<<<<< HEAD
 	url = https://github.com/visking-cn/media-server
+=======
+	url = https://gitee.com/ireader/media-server
+[submodule "3rdpart/jsoncpp"]
+	path = 3rdpart/jsoncpp
+	url = https://gitee.com/mirrors/jsoncpp.git
+>>>>>>> 1012a5b08a6aa8cced51f168f4d11f94b5fe1abd
