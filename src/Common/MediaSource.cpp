@@ -8,12 +8,13 @@
  * may be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "MediaSource.h"
-#include "Record/MP4Reader.h"
 #include "Util/util.h"
+#include "Util/NoticeCenter.h"
 #include "Network/sockutil.h"
 #include "Network/TcpSession.h"
-#include "Util/NoticeCenter.h"
+#include "MediaSource.h"
+#include "Common/config.h"
+#include "Record/MP4Reader.h"
 
 using namespace std;
 using namespace toolkit;
@@ -49,6 +50,59 @@ string getOriginTypeString(MediaOriginType type){
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+ProtocolOption::ProtocolOption() {
+    GET_CONFIG(bool, s_modify_stamp, Protocol::kModifyStamp);
+    GET_CONFIG(bool, s_enabel_audio, Protocol::kEnableAudio);
+    GET_CONFIG(bool, s_add_mute_audio, Protocol::kAddMuteAudio);
+    GET_CONFIG(uint32_t, s_continue_push_ms, Protocol::kContinuePushMS);
+
+    GET_CONFIG(bool, s_enable_hls, Protocol::kEnableHls);
+    GET_CONFIG(bool, s_enable_mp4, Protocol::kEnableMP4);
+    GET_CONFIG(bool, s_enable_rtsp, Protocol::kEnableRtsp);
+    GET_CONFIG(bool, s_enable_rtmp, Protocol::kEnableRtmp);
+    GET_CONFIG(bool, s_enable_ts, Protocol::kEnableTS);
+    GET_CONFIG(bool, s_enable_fmp4, Protocol::kEnableFMP4);
+
+    GET_CONFIG(bool, s_hls_demand, Protocol::kHlsDemand);
+    GET_CONFIG(bool, s_rtsp_demand, Protocol::kRtspDemand);
+    GET_CONFIG(bool, s_rtmp_demand, Protocol::kRtmpDemand);
+    GET_CONFIG(bool, s_ts_demand, Protocol::kTSDemand);
+    GET_CONFIG(bool, s_fmp4_demand, Protocol::kFMP4Demand);
+
+    GET_CONFIG(bool, s_mp4_as_player, Protocol::kMP4AsPlayer);
+    GET_CONFIG(uint32_t, s_mp4_max_second, Protocol::kMP4MaxSecond);
+    GET_CONFIG(string, s_mp4_save_path, Protocol::kMP4SavePath);
+
+    GET_CONFIG(string, s_hls_save_path, Protocol::kHlsSavePath);
+
+    modify_stamp = s_modify_stamp;
+    enable_audio = s_enabel_audio;
+    add_mute_audio = s_add_mute_audio;
+    continue_push_ms = s_continue_push_ms;
+
+    enable_hls = s_enable_hls;
+    enable_mp4 = s_enable_mp4;
+    enable_rtsp = s_enable_rtsp;
+    enable_rtmp = s_enable_rtmp;
+    enable_ts = s_enable_ts;
+    enable_fmp4 = s_enable_fmp4;
+
+    hls_demand = s_hls_demand;
+    rtsp_demand = s_rtsp_demand;
+    rtmp_demand = s_rtmp_demand;
+    ts_demand = s_ts_demand;
+    fmp4_demand = s_fmp4_demand;
+
+    mp4_as_player = s_mp4_as_player;
+    mp4_max_second = s_mp4_max_second;
+    mp4_save_path = s_mp4_save_path;
+
+    hls_save_path = s_hls_save_path;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct MediaSourceNull : public MediaSource {
     MediaSourceNull() : MediaSource("schema", "vhost", "app", "stream") {};
     int readerCount() override { return 0; }
@@ -233,22 +287,24 @@ toolkit::EventPoller::Ptr MediaSource::getOwnerPoller() {
     toolkit::EventPoller::Ptr ret;
     auto listener = _listener.lock();
     if (listener) {
-        ret = listener->getOwnerPoller(*this);
+        return listener->getOwnerPoller(*this);
     }
-    return ret ? ret : _default_poller;
+    WarnL << toolkit::demangle(typeid(*this).name()) + "::getOwnerPoller failed, now return default poller: " + getUrl();
+    return _default_poller;
 }
 
 void MediaSource::onReaderChanged(int size) {
     weak_ptr<MediaSource> weak_self = shared_from_this();
-    getOwnerPoller()->async([weak_self, size]() {
+    auto listener = _listener.lock();
+    if (!listener) {
+        return;
+    }
+    getOwnerPoller()->async([weak_self, size, listener]() {
         auto strong_self = weak_self.lock();
         if (!strong_self) {
             return;
         }
-        auto listener = strong_self->_listener.lock();
-        if (listener) {
-            listener->onReaderChanged(*strong_self, size);
-        }
+        listener->onReaderChanged(*strong_self, size);
     });
 }
 
@@ -729,7 +785,7 @@ toolkit::EventPoller::Ptr MediaSourceEventInterceptor::getOwnerPoller(MediaSourc
     if (listener) {
         return listener->getOwnerPoller(sender);
     }
-    return EventPollerPool::Instance().getPoller();
+    throw std::runtime_error(toolkit::demangle(typeid(*this).name()) + "::getOwnerPoller failed");
 }
 
 bool MediaSourceEventInterceptor::setupRecord(MediaSource &sender, Recorder::type type, bool start, const string &custom_path, size_t max_second) {

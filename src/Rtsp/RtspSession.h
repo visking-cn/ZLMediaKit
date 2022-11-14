@@ -37,7 +37,7 @@ public:
     using Ptr = std::shared_ptr<BufferRtp>;
 
     BufferRtp(Buffer::Ptr pkt, size_t offset = 0) : _offset(offset), _rtp(std::move(pkt)) {}
-    ~BufferRtp() override {}
+    ~BufferRtp() override = default;
 
     char *data() const override {
         return (char *)_rtp->data() + _offset;
@@ -91,6 +91,8 @@ protected:
     std::string getOriginUrl(MediaSource &sender) const override;
     // 获取媒体源客户端相关信息
     std::shared_ptr<SockInfo> getOriginSock(MediaSource &sender) const override;
+    // 由于支持断连续推，存在OwnerPoller变更的可能
+    toolkit::EventPoller::Ptr getOwnerPoller(MediaSource &sender) override;
 
     /////TcpSession override////
     ssize_t send(toolkit::Buffer::Ptr pkt) override;
