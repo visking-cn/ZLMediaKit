@@ -400,7 +400,7 @@ uint16_t openRtpServer(uint16_t local_port, const string &stream_id, int tcp_mod
         //设置rtp超时移除事件
         lock_guard<recursive_mutex> lck(s_rtpServerMapMtx);
         s_rtpServerMap.erase(stream_id);
-        });
+    });
 
     //保存对象
     s_rtpServerMap.emplace(stream_id, server);
@@ -1760,6 +1760,11 @@ void installWebApi() {
 
     api_regist("/index/hook/on_server_keepalive",[](API_ARGS_JSON){
         //心跳hook
+    });
+
+    api_regist("/index/hook/on_rtp_server_timeout",[](API_ARGS_JSON){
+        //rtp server 超时
+        TraceL <<allArgs.getArgs().toStyledString();
     });
 }
 

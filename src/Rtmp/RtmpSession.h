@@ -80,6 +80,8 @@ private:
     std::string getOriginUrl(MediaSource &sender) const override;
     // 获取媒体源客户端相关信息
     std::shared_ptr<SockInfo> getOriginSock(MediaSource &sender) const override;
+    // 由于支持断连续推，存在OwnerPoller变更的可能
+    toolkit::EventPoller::Ptr getOwnerPoller(MediaSource &sender) override;
 
     void setSocketFlags();
     std::string getStreamId(const std::string &str);
@@ -94,8 +96,6 @@ private:
     //消耗的总流量
     uint64_t _total_bytes = 0;
     std::string _tc_url;
-    //推流时间戳修整器
-    Stamp _stamp[2];
     //数据接收超时计时器
     toolkit::Ticker _ticker;
     MediaInfo _media_info;
