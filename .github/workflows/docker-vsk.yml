@@ -71,7 +71,7 @@ jobs:
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.date.outputs.date }}, latest 
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.date.outputs.date }}, ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 
           labels: ${{ steps.meta.outputs.labels }}
           build-args: MODEL=Release
           platforms: linux/amd64,linux/arm64
