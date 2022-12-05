@@ -17,21 +17,21 @@
 #include "SrtpSession.hpp"
 #include "StunPacket.hpp"
 #include "Sdp.h"
+#include "Util/mini.h"
 #include "Poller/EventPoller.h"
 #include "Network/Socket.h"
-#include "Rtsp/RtspMediaSourceImp.h"
-#include "Rtcp/RtcpContext.h"
-#include "Rtcp/RtcpFCI.h"
-#include "Nack.h"
 #include "Network/Session.h"
+#include "Nack.h"
 #include "TwccContext.h"
 #include "SctpAssociation.hpp"
+#include "Rtcp/RtcpContext.h"
 
 namespace mediakit {
 
 //RTC配置项目
 namespace Rtc {
 extern const std::string kPort;
+extern const std::string kTcpPort;
 extern const std::string kTimeOutSec;
 }//namespace RTC
 
@@ -179,7 +179,7 @@ private:
     std::shared_ptr<RTC::SrtpSession> _srtp_session_send;
     std::shared_ptr<RTC::SrtpSession> _srtp_session_recv;
     Ticker _ticker;
-    //循环池
+    // 循环池
     ResourcePool<BufferRaw> _packet_pool;
 
 #ifdef ENABLE_SCTP
@@ -250,7 +250,7 @@ public:
     void createRtpChannel(const std::string &rid, uint32_t ssrc, MediaTrack &track);
 
 protected:
-    WebRtcTransportImp(const EventPoller::Ptr &poller);
+    WebRtcTransportImp(const EventPoller::Ptr &poller,bool preferred_tcp = false);
     void OnDtlsTransportApplicationDataReceived(const RTC::DtlsTransport *dtlsTransport, const uint8_t *data, size_t len) override;
     void onStartWebRTC() override;
     void onSendSockData(Buffer::Ptr buf, bool flush = true, RTC::TransportTuple *tuple = nullptr) override;
@@ -280,6 +280,7 @@ private:
     void onCheckAnswer(RtcSession &sdp);
 
 private:
+    bool _preferred_tcp;
     uint16_t _rtx_seq[2] = {0, 0};
     //用掉的总流量
     uint64_t _bytes_usage = 0;
