@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include "Util/logger.h"
 #include "Util/SSLBox.h"
+#include "Util/File.h"
 #include "Network/TcpServer.h"
 #include "Network/UdpServer.h"
 #include "Thread/WorkThreadPool.h"
@@ -37,12 +38,14 @@ static std::shared_ptr<RtpServer> rtpServer;
 
 #ifdef ENABLE_WEBRTC
 #include "../webrtc/WebRtcSession.h"
-static std::shared_ptr<UdpServer> rtcServer;
+#include "../webrtc/WebRtcTransport.h"
+static UdpServer::Ptr rtcServer_udp;
+static TcpServer::Ptr rtcServer_tcp;
 #endif
 
 #if defined(ENABLE_SRT)
 #include "../srt/SrtSession.hpp"
-static std::shared_ptr<UdpServer> srtServer;
+static UdpServer::Ptr srtServer;
 #endif
 
 //////////////////////////environment init///////////////////////////
@@ -72,7 +75,8 @@ API_EXPORT void API_CALL mk_stop_all_server(){
     rtpServer = nullptr;
 #endif
 #ifdef ENABLE_WEBRTC
-    rtcServer = nullptr;
+    rtcServer_udp = nullptr;
+    rtcServer_tcp = nullptr;
 #endif
 #ifdef ENABLE_SRT
     srtServer = nullptr;
@@ -172,13 +176,13 @@ API_EXPORT uint16_t API_CALL mk_http_server_start(uint16_t port, int ssl) {
     try {
         http_server[ssl] = std::make_shared<TcpServer>();
         if(ssl){
-            http_server[ssl]->start<TcpSessionWithSSL<HttpSession> >(port);
+            http_server[ssl]->start<SessionWithSSL<HttpSession> >(port);
         } else{
             http_server[ssl]->start<HttpSession>(port);
         }
         return http_server[ssl]->getPort();
     } catch (std::exception &ex) {
-        http_server[ssl].reset();
+        http_server[ssl] = nullptr;;
         WarnL << ex.what();
         return 0;
     }
@@ -189,13 +193,13 @@ API_EXPORT uint16_t API_CALL mk_rtsp_server_start(uint16_t port, int ssl) {
     try {
         rtsp_server[ssl] = std::make_shared<TcpServer>();
         if(ssl){
-            rtsp_server[ssl]->start<TcpSessionWithSSL<RtspSession> >(port);
+            rtsp_server[ssl]->start<SessionWithSSL<RtspSession> >(port);
         }else{
             rtsp_server[ssl]->start<RtspSession>(port);
         }
         return rtsp_server[ssl]->getPort();
     } catch (std::exception &ex) {
-        rtsp_server[ssl].reset();
+        rtsp_server[ssl] = nullptr;;
         WarnL << ex.what();
         return 0;
     }
@@ -206,13 +210,13 @@ API_EXPORT uint16_t API_CALL mk_rtmp_server_start(uint16_t port, int ssl) {
     try {
         rtmp_server[ssl] = std::make_shared<TcpServer>();
         if(ssl){
-            rtmp_server[ssl]->start<TcpSessionWithSSL<RtmpSession> >(port);
+            rtmp_server[ssl]->start<SessionWithSSL<RtmpSession> >(port);
         }else{
             rtmp_server[ssl]->start<RtmpSession>(port);
         }
         return rtmp_server[ssl]->getPort();
     } catch (std::exception &ex) {
-        rtmp_server[ssl].reset();
+        rtmp_server[ssl] = nullptr;;
         WarnL << ex.what();
         return 0;
     }
@@ -226,7 +230,7 @@ API_EXPORT uint16_t API_CALL mk_rtp_server_start(uint16_t port){
         rtpServer->start(port);
         return rtpServer->getPort();
     } catch (std::exception &ex) {
-        rtpServer.reset();
+        rtpServer = nullptr;;
         WarnL << ex.what();
         return 0;
     }
@@ -239,9 +243,9 @@ API_EXPORT uint16_t API_CALL mk_rtp_server_start(uint16_t port){
 API_EXPORT uint16_t API_CALL mk_rtc_server_start(uint16_t port) {
 #ifdef ENABLE_WEBRTC
     try {
-        //创建rtc服务器
-        rtcServer = std::make_shared<UdpServer>();
-        rtcServer->setOnCreateSocket([](const EventPoller::Ptr &poller, const Buffer::Ptr &buf, struct sockaddr *, int) {
+        //创建rtc udp服务器
+        rtcServer_udp = std::make_shared<UdpServer>();
+        rtcServer_udp->setOnCreateSocket([](const EventPoller::Ptr &poller, const Buffer::Ptr &buf, struct sockaddr *, int) {
             if (!buf) {
                 return Socket::createSocket(poller, false);
             }
@@ -252,11 +256,15 @@ API_EXPORT uint16_t API_CALL mk_rtc_server_start(uint16_t port) {
             }
             return Socket::createSocket(new_poller, false);
         });
-        rtcServer->start<WebRtcSession>(port);
-        return rtcServer->getPort();
+        rtcServer_udp->start<WebRtcSession>(port);
+        //创建rtc tcp服务器
+        rtcServer_tcp = std::make_shared<TcpServer>();
+        rtcServer_tcp->start<WebRtcSession>(rtcServer_udp->getPort());
+        return rtcServer_udp->getPort();
 
     } catch (std::exception &ex) {
-        rtcServer.reset();
+        rtcServer_udp = nullptr;
+        rtcServer_tcp = nullptr;
         WarnL << ex.what();
         return 0;
     }
@@ -323,7 +331,7 @@ API_EXPORT uint16_t API_CALL mk_srt_server_start(uint16_t port) {
         return srtServer->getPort();
 
     } catch (std::exception &ex) {
-        srtServer.reset();
+        srtServer = nullptr;;
         WarnL << ex.what();
         return 0;
     }
@@ -339,7 +347,7 @@ API_EXPORT uint16_t API_CALL mk_shell_server_start(uint16_t port){
         shell_server->start<ShellSession>(port);
         return shell_server->getPort();
     } catch (std::exception &ex) {
-        shell_server.reset();
+        shell_server = nullptr;;
         WarnL << ex.what();
         return 0;
     }
